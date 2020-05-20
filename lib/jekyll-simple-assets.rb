@@ -5,6 +5,22 @@ require 'pathname'
 
 module Jekyll
 	module SimpleAssets
+		def self.site (site)
+			@@site ||= site
+		end
+
+		def self.config
+			@@config ||= @@site.config['simple_assets']
+		end
+
+		def self.hash_length
+			config['hash_length'] || 16
+		end
+
+		def self.hashing_enabled?
+			config['hashing_enabled'] || ENV['JEKYLL_ENV'] == 'production'
+		end
+
 		module SimpleAssetsFilters
 			def md5 (input)
 				Digest::MD5.hexdigest(input)
@@ -13,13 +29,13 @@ module Jekyll
 
 		class BundleTag < Jekyll::Tags::IncludeTag
 			def tag_includes_dirs(context)
-				[ "_js", "_assets" ].freeze
+				[ "_js", "_javascript", "_assets" ].freeze
 			end
 		end
 
 		class BundleRawTag < Jekyll::Tags::IncludeTag
 			def tag_includes_dirs(context)
-				[ "_js", "_assets" ].freeze
+				[ "_js", "_javascript", "_assets" ].freeze
 			end
 
 			def render(context)
@@ -35,9 +51,7 @@ module Jekyll
 
 				return unless File.file? path
 
-				begin
-					content = File.read path
-				end
+				content = File.read path
 
 				content
 			end
@@ -56,11 +70,11 @@ module Jekyll
 		end
 
 		def self.get_placeholder (asset_path)
-			asset_placeholder_map[asset_path] ||= Digest::MD5.hexdigest(asset_path)
+			asset_placeholder_map[asset_path] ||= Digest::MD5.base64digest(asset_path)
 		end
 
-		def self.relative_url (site, path)
-			"#{ site.config['baseurl'] }/#{ path }".gsub(%r{/{2,}}, '/')
+		def self.relative_url (path)
+			"#{ @@site.config['baseurl'] || '' }/#{ path }".gsub(%r{/{2,}}, '/')
 		end
 
 		class AssetTag < Liquid::Tag
@@ -91,7 +105,8 @@ module Jekyll
 			end
 
 			def render (context)
-				site = context.registers[:site]
+				site = SimpleAssets::site(context.registers[:site])
+
 				page = context.environments.first['page']
 
 				args = Shellwords.split(@text)
@@ -100,18 +115,24 @@ module Jekyll
 
 				asset_path = get_value(context, args[0]).sub(/^\//, '')
 
-				if ENV['JEKYLL_ENV'] == 'production'
+				if SimpleAssets::hashing_enabled?
 					SimpleAssets::page_assets_map[page_path] ||= {}
 					SimpleAssets::page_assets_map[page_path][asset_path] ||= {}
 					SimpleAssets::page_assets_map[page_path][asset_path][@type] ||= []
 
 					placeholder = SimpleAssets::get_placeholder(asset_path)
 
-					SimpleAssets::page_assets_map[page_path][asset_path][@type] << placeholder
+					unless SimpleAssets::page_assets_map[page_path][asset_path][@type].include? placeholder
+						SimpleAssets::page_assets_map[page_path][asset_path][@type] << placeholder
+					end
 
 					"#{ @type }::#{ placeholder }"
 				else
-					SimpleAssets::relative_url(site, asset_path)
+					if @type == 'path'
+						SimpleAssets::relative_url(asset_path)
+					else
+						placeholder[0, SimpleAssets::hash_length]
+					end
 				end
 			end
 		end
@@ -161,7 +182,11 @@ module Jekyll
 				Jekyll.logger.warn "SimpleAssets", "#{ asset_path } has no content"
 			end
 
-			SimpleAssets::asset_contenthash_map[asset_path] = Digest::MD5.hexdigest(content)
+			base64hash = Digest::MD5.base64digest(content)
+
+			hash = base64hash[0, SimpleAssets::hash_length]
+
+			SimpleAssets::asset_contenthash_map[asset_path] = hash
 		end
 
 		def self.replace_placeholders_for_asset (doc, site)
@@ -181,16 +206,12 @@ module Jekyll
 						if type == 'path'
 							replacement = "#{ asset_path }?v=#{ replacement }"
 
-							replacement = SimpleAssets::relative_url(site, replacement)
+							replacement = SimpleAssets::relative_url(replacement)
 						end
 
 						placeholder = "#{ type }::#{ SimpleAssets::asset_placeholder_map[asset_path] }"
 
-						if placeholders.size > 1
-							doc.output = doc.output.gsub(placeholder, replacement)
-						else
-							doc.output = doc.output.sub(placeholder, replacement)
-						end
+						doc.output = doc.output.gsub(placeholder, replacement)
 					end
 				end
 			end
@@ -205,27 +226,29 @@ Liquid::Template.register_tag('bundle_raw', Jekyll::SimpleAssets::BundleRawTag)
 
 Liquid::Template.register_filter(Jekyll::SimpleAssets::SimpleAssetsFilters)
 
-if ENV['JEKYLL_ENV'] == 'production'
-	Jekyll::Hooks.register :site, :post_render do |site, payload|
-		potential_assets = []
+Jekyll::Hooks.register :site, :post_render do |site, payload|
+	Jekyll::SimpleAssets::site(site)
 
-		potential_assets += site.pages
-		potential_assets += site.static_files
+	return unless Jekyll::SimpleAssets::hashing_enabled?
 
-		potential_assets.each do |asset|
-			Jekyll::SimpleAssets::resolve_asset_content_hashes(asset, site)
-		end
+	potential_assets = []
 
-		docs = []
+	potential_assets += site.pages
+	potential_assets += site.static_files
 
-		site.pages.each do |doc|
+	potential_assets.each do |asset|
+		Jekyll::SimpleAssets::resolve_asset_content_hashes(asset, site)
+	end
+
+	docs = []
+
+	site.pages.each do |doc|
+		Jekyll::SimpleAssets::replace_placeholders_for_asset(doc, site)
+	end
+
+	site.collections.each do |collection_name, collection|
+		collection.docs.each do |doc|
 			Jekyll::SimpleAssets::replace_placeholders_for_asset(doc, site)
-		end
-
-		site.collections.each do |collection_name, collection|
-			collection.docs.each do |doc|
-				Jekyll::SimpleAssets::replace_placeholders_for_asset(doc, site)
-			end
 		end
 	end
 end
