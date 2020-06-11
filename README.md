@@ -83,4 +83,18 @@ simple_assets:
   # The length of the content hashes generated.
   # default: 16
   hash_length: 8
+
+  # Options for generating a critical css file using the `critical` npm module
+  critical_css:
+
+    # Array of source css files used to take the critical css from
+    css_files:
+      - assets/css/style.css
+
+    # Array of critical css files to generate
+    files:
+	# The path of the input page used to generate the critical css
+      - input_page_path: _drafts/webmentions-static-site.md
+        # The path of the critical css file output
+        output_file: assets/css/critical.css
 ```

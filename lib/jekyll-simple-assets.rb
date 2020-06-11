@@ -2,6 +2,8 @@
 
 require 'digest'
 require 'pathname'
+require 'open3'
+require 'shellwords'
 
 module Jekyll
 	module SimpleAssets
@@ -19,6 +21,10 @@ module Jekyll
 
 		def self.hashing_enabled?
 			config['hashing_enabled'] || ENV['JEKYLL_ENV'] == 'production'
+		end
+
+		def self.critical_css_enabled?
+			config.key?('critical_css')
 		end
 
 		module SimpleAssetsFilters
@@ -175,30 +181,30 @@ module Jekyll
 			elsif File.file? asset.path
 				content = File.read asset.path
 			else
-				Jekyll.logger.warn "SimpleAssets", "File: #{ asset_path } not found"
+				Jekyll.logger.warn "SimpleAssets:", "File: #{ asset_path } not found"
 			end
 
 			if content.nil?
-				Jekyll.logger.warn "SimpleAssets", "#{ asset_path } has no content"
+				Jekyll.logger.warn "SimpleAssets:", "#{ asset_path } has no content"
 			end
 
 			base64hash = Digest::MD5.base64digest(content)
 
-			hash = base64hash[0, SimpleAssets::hash_length]
+			hash = base64hash[0, SimpleAssets::hash_length].gsub(/[+\/]/, '_')
 
 			SimpleAssets::asset_contenthash_map[asset_path] = hash
 		end
 
-		def self.replace_placeholders_for_asset (doc, site)
-			page_path = doc.path.sub("#{ site.config['source'] }/", '')
-
-			return unless SimpleAssets::page_assets_map[page_path]
+		def self.replace_placeholders_for_path (page_path, input)
+			output = input
 
 			SimpleAssets::page_assets_map[page_path].each do |asset_path, types|
 				types.each do |type, placeholders|
 					placeholders.each do |placeholder_hash|
 						unless SimpleAssets::asset_contenthash_map[asset_path]
-							Jekyll.logger.warn "SimpleAssets", "No contenthash for: #{ asset_path } not found"
+							Jekyll.logger.warn "SimpleAssets:", "No contenthash for: #{ asset_path } not found"
+
+							next
 						end
 
 						replacement = SimpleAssets::asset_contenthash_map[asset_path]
@@ -211,10 +217,20 @@ module Jekyll
 
 						placeholder = "#{ type }::#{ SimpleAssets::asset_placeholder_map[asset_path] }"
 
-						doc.output = doc.output.gsub(placeholder, replacement)
+						output = output.gsub(placeholder, replacement)
 					end
 				end
 			end
+
+			output
+		end
+
+		def self.replace_placeholders_for_asset (doc, site)
+			page_path = doc.path.sub("#{ site.config['source'] }/", '')
+
+			return unless SimpleAssets::page_assets_map[page_path]
+
+			doc.output = SimpleAssets::replace_placeholders_for_path(page_path, doc.output)
 		end
 	end
 end
@@ -226,30 +242,61 @@ Liquid::Template.register_tag('bundle_raw', Jekyll::SimpleAssets::BundleRawTag)
 
 Liquid::Template.register_filter(Jekyll::SimpleAssets::SimpleAssetsFilters)
 
-Jekyll::Hooks.register :site, :post_render do |site, payload|
+Jekyll::Hooks.register :site, :post_render, priority: :low do |site, payload|
 	Jekyll::SimpleAssets::site(site)
-
-	return unless Jekyll::SimpleAssets::hashing_enabled?
 
 	potential_assets = []
 
 	potential_assets += site.pages
 	potential_assets += site.static_files
 
-	potential_assets.each do |asset|
-		Jekyll::SimpleAssets::resolve_asset_content_hashes(asset, site)
-	end
-
-	docs = []
-
-	site.pages.each do |doc|
-		Jekyll::SimpleAssets::replace_placeholders_for_asset(doc, site)
-	end
+	potential_pages = potential_assets
 
 	site.collections.each do |collection_name, collection|
-		collection.docs.each do |doc|
+		potential_pages = potential_pages + collection.docs
+	end
+
+	if Jekyll::SimpleAssets::critical_css_enabled?
+		potential_assets.each do |asset|
+			Jekyll::SimpleAssets::make_temp_css_files_for_critical(asset)
+		end
+
+		potential_pages.each do |doc|
+			Jekyll::SimpleAssets::get_html_input_for_critical(doc, site)
+		end
+
+		Jekyll::SimpleAssets::generate_critical_css(site)
+	end
+
+	if Jekyll::SimpleAssets::hashing_enabled?
+		potential_assets.each do |asset|
+			Jekyll::SimpleAssets::resolve_asset_content_hashes(asset, site)
+		end
+
+		if Jekyll::SimpleAssets::critical_css_enabled?
+			Jekyll::SimpleAssets::resolve_critical_css_content_hashes(site)
+		end
+
+		potential_pages.each do |doc|
 			Jekyll::SimpleAssets::replace_placeholders_for_asset(doc, site)
 		end
 	end
 end
+
+Jekyll::Hooks.register :site, :post_read do |site|
+	css_pages = [];
+
+	site.pages.each do |doc|
+		if doc.extname == '.scss'
+			css_pages << doc
+			site.pages = site.pages - [ doc ]
+		end
+	end
+
+	site.pages = css_pages + site.pages
+end
+
+# Jekyll::Hooks.register :pages, :post_render do |document|
+# 	puts 'rendered:' + document.path
+# end
 
