@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require 'css_parser'
+require 'tempfile'
+
 module Jekyll
 module SimpleAssets
 
@@ -35,6 +38,9 @@ def self.generate_critical_css (site)
 
 	SimpleAssets::critical_css_source_files.each do |f|
 		css_files_str += "--css #{ f['file'].path } "
+
+		f['css'] = CssParser::Parser.new
+		f['css'].load_string! f['page'].output
 	end
 
 	SimpleAssets::config['critical_css']['files'].each do |file|
@@ -59,20 +65,42 @@ def self.generate_critical_css (site)
 				Jekyll.logger.warn("SimpleAssets:", 'Critical:' + err) if err
 			end
 
-			critical_css = stdout.read
+			critical_css_str = stdout.read
 
 			asset_path = file['output_file'].sub(/^\//, '')
 
-			base64hash = Digest::MD5.base64digest(critical_css)
+			base64hash = Digest::MD5.base64digest(critical_css_str)
 
 			hash = base64hash[0, SimpleAssets::hash_length].gsub(/[+\/]/, '_')
 
 			SimpleAssets::asset_contenthash_map[asset_path] = hash
 
-			IO.write(css_path, critical_css)
+			IO.write(css_path, critical_css_str)
 
 			site.keep_files << asset_path
+
+			if file['extract']
+				critical_css = CssParser::Parser.new
+
+				critical_css.load_string! critical_css_str
+
+				SimpleAssets::critical_css_source_files.each do |f|
+					f['css'].each_rule_set do |source_rule_set, media_type|
+						critical_css.each_rule_set do |critical_rule_set, media_type|
+							if critical_rule_set.selectors.join(',') == source_rule_set.selectors.join(',')
+								f['css'].remove_rule_set! source_rule_set, media_type
+
+								break
+							end
+						end
+					end
+				end
+			end
 		end
+	end
+
+	SimpleAssets::critical_css_source_files.each do |f|
+		f['page'].output = f['css'].to_s if f['extract']
 	end
 end
 
@@ -80,8 +108,6 @@ def self.resolve_critical_css_content_hashes (site)
 	SimpleAssets::critical_css_source_files.each do |source_file|
 		page = source_file['page']
 		page_path = page.path.sub("#{ site.config['source'] }/", '')
-
-		page.output = IO.read(source_file['file'].path)
 
 		SimpleAssets::config['critical_css']['files'].each do |file|
 			css_path  = File.join(site.config['destination'], file['output_file'])

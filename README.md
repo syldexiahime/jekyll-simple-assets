@@ -97,4 +97,6 @@ simple_assets:
       - input_page_path: _drafts/webmentions-static-site.md
         # The path of the critical css file output
         output_file: assets/css/critical.css
+        # If the rules should be removed from the original source css files
+        extract: true
 ```
