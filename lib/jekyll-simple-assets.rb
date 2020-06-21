@@ -5,6 +5,9 @@ require 'pathname'
 require 'open3'
 require 'shellwords'
 
+require 'jekyll-simple-assets/content-hash'
+require 'jekyll-simple-assets/critical'
+
 module Jekyll
 	module SimpleAssets
 		def self.site (site)
