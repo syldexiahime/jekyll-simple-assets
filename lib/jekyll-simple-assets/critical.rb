@@ -24,10 +24,14 @@ def self.make_temp_css_files_for_critical (asset)
 end
 
 def self.get_html_input_for_critical (doc, site)
+	return unless doc.respond_to? '[]'
+
 	SimpleAssets::config['critical_css']['files'].each do |file|
+		next if file['html']
+
 		page_path = doc.path.sub("#{ site.config['source'] }/", '')
 
-		next unless page_path == file['input_page_path']
+		next unless page_path == file['input_page_path'] || file['layout'] == doc['layout']
 
 		file['html'] = doc.output
 	end
@@ -85,10 +89,11 @@ def self.generate_critical_css (site)
 				critical_css.load_string! critical_css_str
 
 				SimpleAssets::critical_css_source_files.each do |f|
-					f['css'].each_rule_set do |source_rule_set, media_type|
-						critical_css.each_rule_set do |critical_rule_set, media_type|
+					f['css'].each_rule_set do |source_rule_set, source_media_type|
+						critical_css.each_rule_set do |critical_rule_set, critical_media_type|
 							if critical_rule_set.selectors.join(',') == source_rule_set.selectors.join(',')
-								f['css'].remove_rule_set! source_rule_set, media_type
+								f['css'].remove_rule_set! source_rule_set, source_media_type
+								f['extract'] = true
 
 								break
 							end
