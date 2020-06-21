@@ -71,6 +71,12 @@ to manipulate the output of the contenthash or asset tags.
 By default the generation of content hashes is only enabled for production
 builds (if JEKYLL_ENV is set to 'production').
 
+## Critical CSS
+
+This plugin can also be used to generate critical css stylesheets. See
+configuration for more information on doing this. To generate critical css,
+[critical](https://github.com/addyosmani/critical) must be installed.
+
 ## Configuration
 
 ```
@@ -93,10 +99,14 @@ simple_assets:
 
     # Array of critical css files to generate
     files:
-	# The path of the input page used to generate the critical css
-      - input_page_path: _drafts/webmentions-static-site.md
         # The path of the critical css file output
-        output_file: assets/css/critical.css
+      - output_file: assets/css/critical.css
+	# The path of the input page used to generate the critical css
+        # either this option or layout can be used
+        input_page_path: _drafts/webmentions-static-site.md
+        # The layout to use to generate critical css
+        # (will use the first page found with this layout)
+        layout: post
         # If the rules should be removed from the original source css files
         extract: true
 ```
