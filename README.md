@@ -77,6 +77,38 @@ This plugin can also be used to generate critical css stylesheets. See
 configuration for more information on doing this. To generate critical css,
 [critical](https://github.com/addyosmani/critical) must be installed.
 
+## Javascript/Typescript bundling
+
+This plugin can also be used to bundle javascript and typescript files and
+modules using esbuild. Node modules can be included just by requiring them.
+Local modules can be required under the `@simple-assets` namespace, which
+will look for js files in the `_js` and `_ts` directories.
+
+For example:
+```javascript
+// assets/js/main.js
+
+// require node_module
+var leftpad = require('left-pad');
+
+// will look for left-pad.js or left-pad.ts at _js/ or _ts/ in the
+// project root
+var rightpad = require('@simple-assets/right-pad');
+```
+
+You can also put variables in the liquid frontmatter of a js/ts file (that is
+not under `_js` or `_ts`) to configure esbuild.
+
+```liquid
+---
+bundle: false # don't bundle or run esbuild on this file
+esbuild_flags: --target=es5 # pass any flags to esbuild for this file
+---
+```
+
+To bundle javascript [esbuild](https://github.com/evanw/esbuild) must be
+installed.
+
 ## Configuration
 
 ```
@@ -109,4 +141,8 @@ simple_assets:
         layout: post
         # If the rules should be removed from the original source css files
         extract: true
+
+  # Options for bundling javascript/typescript with the `esbuild` npm module
+  # Set to true to enable
+  bundle: true
 ```

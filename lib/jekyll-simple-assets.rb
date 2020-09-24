@@ -7,10 +7,11 @@ require 'shellwords'
 
 require 'jekyll-simple-assets/content-hash'
 require 'jekyll-simple-assets/critical'
+require 'jekyll-simple-assets/esbuild'
 
 module Jekyll
 	module SimpleAssets
-		def self.site (site)
+		def self.site (site = nil)
 			@@site ||= site
 		end
 
@@ -24,6 +25,14 @@ module Jekyll
 
 		def self.critical_css_enabled?
 			config.key?('critical_css')
+		end
+
+		def self.esbuild_enabled?
+			config.key?('bundle') && config['bundle'] != false
+		end
+
+		def self.esbuild_config_file (file = nil)
+			@@esbuild_config_file ||= file
 		end
 
 		module SimpleAssetsFilters
@@ -107,6 +116,18 @@ Jekyll::Hooks.register :site, :post_render, priority: :low do |site, payload|
 		potential_pages.each do |doc|
 			Jekyll::SimpleAssets::replace_placeholders_for_asset(doc, site)
 		end
+	end
+end
+
+Jekyll::Hooks.register :pages, :post_render do |page, payload|
+	next unless Jekyll::SimpleAssets::esbuild_enabled?
+
+	unless Jekyll::SimpleAssets::esbuild_config_file
+		Jekyll::SimpleAssets::generate_esbuild_config_file()
+	end
+
+	if page.extname =~ /^\.(j|t)s$/i
+		Jekyll::SimpleAssets::esbuild_bundle_file(page, payload, Jekyll::SimpleAssets::esbuild_config_file.path)
 	end
 end
 

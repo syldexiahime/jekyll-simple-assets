@@ -60,13 +60,16 @@ def self.generate_critical_css (site)
 			stdin.write(html)
 			stdin.close
 
-			err = stderr.read
-			unless wait_thr.value.success?
-				Jekyll.logger.error("SimpleAssets:", 'Critical:' + err || stdout.read)
-
-				next
-			else
-				Jekyll.logger.warn("SimpleAssets:", 'Critical:' + err) if err
+			if !wait_thr.value.success? || stderr.read != ''
+				Jekyll.logger.error("SimpleAssets:", 'Critical (css) error:')
+				stderr.each do |line|
+					Jekyll.logger.error("", line)
+				end
+			elsif stderr.read != ''
+				Jekyll.logger.error("SimpleAssets:", 'Critical (css) error:')
+				stderr.each do |line|
+					Jekyll.logger.error("", line)
+				end
 			end
 
 			critical_css_str = stdout.read
