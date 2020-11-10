@@ -7,19 +7,21 @@ module Jekyll
 module SimpleAssets
 
 
-def self.critical_css_source_files
-	@@critical_css_source_files ||= []
+def self.critical_css_source_files ()
+	@@critical_css_source_files ||= {}
 end
 
 def self.make_temp_css_files_for_critical (asset)
 	SimpleAssets::config['critical_css']['css_files'].each do |path|
 		next unless asset.path == path || asset.path == path.sub(/\.css$/, '.scss')
 
-		f = Tempfile.new('css-source')
+		f = Tempfile.new([ 'css-source', '.css' ])
 		f.write asset.output
 		f.close
 
-		SimpleAssets::critical_css_source_files << { 'file' => f, 'page' => asset }
+		Jekyll.logger.debug("SimpleAssets:", "Created new temp file for css: #{ asset.path } at: #{ f.path }")
+
+		SimpleAssets::critical_css_source_files[path] = { 'file' => f, 'page' => asset }
 	end
 end
 
@@ -40,7 +42,7 @@ end
 def self.generate_critical_css (site)
 	css_files_str = ''
 
-	SimpleAssets::critical_css_source_files.each do |f|
+	SimpleAssets::critical_css_source_files.each do |_, f|
 		css_files_str += "--css #{ f['file'].path } "
 
 		f['css'] = CssParser::Parser.new
@@ -91,7 +93,7 @@ def self.generate_critical_css (site)
 
 				critical_css.load_string! critical_css_str
 
-				SimpleAssets::critical_css_source_files.each do |f|
+				SimpleAssets::critical_css_source_files.each do |_, f|
 					f['css'].each_rule_set do |source_rule_set, source_media_type|
 						critical_css.each_rule_set do |critical_rule_set, critical_media_type|
 							if critical_rule_set.selectors.join(',') == source_rule_set.selectors.join(',')
@@ -107,13 +109,19 @@ def self.generate_critical_css (site)
 		end
 	end
 
-	SimpleAssets::critical_css_source_files.each do |f|
-		f['page'].output = f['css'].to_s if f['extract']
+	SimpleAssets::critical_css_source_files.each do |_, f|
+		leftover_css = f['css'].to_s if f['extract']
+
+		# css_parser leaves blank keyframes so fix them
+		keyframes = f['page'].output.scan(/@keyframes\s+(?:.*?)\s*{(?:\s*\S*?\s*{.*?}\s*)+}/m)
+		keyframes.each { |keyframe| leftover_css += keyframe }
+
+		f['page'].output
 	end
 end
 
 def self.resolve_critical_css_content_hashes (site)
-	SimpleAssets::critical_css_source_files.each do |source_file|
+	SimpleAssets::critical_css_source_files.each do |_, source_file|
 		page = source_file['page']
 		page_path = page.path.sub("#{ site.config['source'] }/", '')
 

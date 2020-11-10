@@ -12,7 +12,9 @@ require 'jekyll-simple-assets/esbuild'
 module Jekyll
 	module SimpleAssets
 		def self.site (site = nil)
-			@@site ||= site
+			@@site = site if site
+
+			@@site
 		end
 
 		def self.config
