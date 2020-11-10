@@ -8,6 +8,7 @@ require 'shellwords'
 require 'jekyll-simple-assets/content-hash'
 require 'jekyll-simple-assets/critical'
 require 'jekyll-simple-assets/esbuild'
+require 'jekyll-simple-assets/uglify'
 
 module Jekyll
 	module SimpleAssets
@@ -35,6 +36,10 @@ module Jekyll
 
 		def self.esbuild_config_file (file = nil)
 			@@esbuild_config_file ||= file
+		end
+
+		def self.uglifier_enabled?
+			config['uglifier_enabled'] || ENV['JEKYLL_ENV'] == 'production'
 		end
 
 		module SimpleAssetsFilters

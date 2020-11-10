@@ -109,6 +109,14 @@ esbuild_flags: --target=es5 # pass any flags to esbuild for this file
 To bundle javascript [esbuild](https://github.com/evanw/esbuild) must be
 installed.
 
+## Javascript minification
+
+The uglifier package is also included and will minify files if `uglifier_enabled`
+is set to true in config.yml, or if JEKYLL_ENV is set to production. Any
+options can be passed to uglifier under the `uglifer` key in config.yml
+(see configuration for example). Additionally you can set uglifier settings in
+the liquid frontmatter of a js file in the same manner as in config.yml.
+
 ## Configuration
 
 ```
@@ -145,4 +153,11 @@ simple_assets:
   # Options for bundling javascript/typescript with the `esbuild` npm module
   # Set to true to enable
   bundle: true
+
+  # Options for javascript minification with uglifier
+  uglifier:
+    # any options for uglifier can be put here and will be passed to it
+    harmony: true
+    output:
+      ascii_only: true
 ```
