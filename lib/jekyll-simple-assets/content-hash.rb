@@ -155,7 +155,10 @@ def self.replace_placeholders_for_path (page_path, input)
 				replacement = SimpleAssets::asset_contenthash_map[asset_path]
 
 				if type == 'path'
-					replacement = "#{ asset_path }?v=#{ replacement }"
+					min_path = asset_path.sub(/\.([^\.]*?)$/, '.min.\1')
+					url = (File.file? File.join(SimpleAssets::site.config['destination'], min_path)) ? min_path : asset_path
+
+					replacement = "#{ url }?v=#{ replacement }"
 
 					replacement = SimpleAssets::relative_url(replacement)
 				end
@@ -168,14 +171,6 @@ def self.replace_placeholders_for_path (page_path, input)
 	end
 
 	output
-end
-
-def self.replace_placeholders_for_asset (doc, site)
-	page_path = doc.path.sub("#{ site.config['source'] }/", '')
-
-	return unless SimpleAssets::page_assets_map[page_path]
-
-	doc.output = SimpleAssets::replace_placeholders_for_path(page_path, doc.output)
 end
 
 

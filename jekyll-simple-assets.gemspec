@@ -20,7 +20,7 @@ Gem::Specification.new do |spec|
 	
 	spec.add_runtime_dependency "jekyll"
 	spec.add_runtime_dependency "css_parser"
-	spec.add_runtime_dependency "uglifier"
+	spec.add_runtime_dependency "terser"
 	
 	spec.add_development_dependency "bundler"
 end

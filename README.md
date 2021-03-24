@@ -23,6 +23,7 @@ Returns a base64 encoded md5 hash based on the contents of the path given.
 
 Returns a relative url to the path given, with a hash based on the content of
 the file as a query string.
+Will link to a minified version of the file if possible.
 
 ```liquid
 {% asset assets/js/app.js %}
@@ -56,6 +57,15 @@ Returns an md5 hash of the input string.
 
 ```liquid
 {{ 'some text' | md5 }}
+```
+
+#### uglify
+
+Minifies javascript given as an input string (uses terser, and terser settings
+even though the filter is called `uglify`
+
+```liquid
+{{ 'const foo = "bar"' | uglify }}
 ```
 
 ## Content hashes
@@ -111,11 +121,13 @@ installed.
 
 ## Javascript minification
 
-The uglifier package is also included and will minify files if `uglifier_enabled`
+The terser package is also included and will minify files if `terser_enabled`
 is set to true in config.yml, or if JEKYLL_ENV is set to production. Any
-options can be passed to uglifier under the `uglifer` key in config.yml
-(see configuration for example). Additionally you can set uglifier settings in
-the liquid frontmatter of a js file in the same manner as in config.yml.
+options can be passed to terser under the `terser` key in config.yml
+(see configuration for example, or
+[here](https://github.com/ahorek/terser-ruby) for detailed options).
+Additionally you can set terser settings in the liquid frontmatter of a js file
+in the same manner as in config.yml, also under the `terser` key.
 
 ## Configuration
 
@@ -125,6 +137,10 @@ simple_assets:
   # production build.
   # default: false
   hashing_enabled: true
+
+  # If set to true, source maps will be generated for javascript
+  # default: false
+  source_maps_enabled: true
 
   # The length of the content hashes generated.
   # default: 16
@@ -154,10 +170,9 @@ simple_assets:
   # Set to true to enable
   bundle: true
 
-  # Options for javascript minification with uglifier
-  uglifier:
-    # any options for uglifier can be put here and will be passed to it
-    harmony: true
+  # Options for javascript minification with terser
+  terser:
+    # any options for terser can be put here and will be passed to it
     output:
       ascii_only: true
 ```

@@ -8,7 +8,7 @@ require 'shellwords'
 require 'jekyll-simple-assets/content-hash'
 require 'jekyll-simple-assets/critical'
 require 'jekyll-simple-assets/esbuild'
-require 'jekyll-simple-assets/uglify'
+require 'jekyll-simple-assets/terser'
 
 module Jekyll
 	module SimpleAssets
@@ -38,8 +38,12 @@ module Jekyll
 			@@esbuild_config_file ||= file
 		end
 
-		def self.uglifier_enabled?
-			config['uglifier_enabled'] || ENV['JEKYLL_ENV'] == 'production'
+		def self.terser_enabled?
+			config['terser_enabled'] || ENV['JEKYLL_ENV'] == 'production'
+		end
+
+		def self.source_maps_enabled?
+			config['source_maps_enabled']
 		end
 
 		module SimpleAssetsFilters
@@ -121,20 +125,39 @@ Jekyll::Hooks.register :site, :post_render, priority: :low do |site, payload|
 		end
 
 		potential_pages.each do |doc|
-			Jekyll::SimpleAssets::replace_placeholders_for_asset(doc, site)
+			page_path = doc.path.sub("#{ site.config['source'] }/", '')
+
+			if Jekyll::SimpleAssets::page_assets_map[page_path]
+				doc.output = Jekyll::SimpleAssets::replace_placeholders_for_path(page_path, doc.output)
+			end
+
+			if doc.extname =~ /^\.(j|t)s$/i and Jekyll::SimpleAssets::should_minify_file?(doc)
+				min_path, minified = Jekyll::SimpleAssets::minify_file(doc)
+
+				if min_path and Jekyll::SimpleAssets::page_assets_map[page_path]
+					minified = Jekyll::SimpleAssets::replace_placeholders_for_path(page_path, minified)
+				end
+
+				File.write(File.join(Jekyll::SimpleAssets::site.config['destination'], min_path), minified)
+			end
 		end
 	end
 end
 
 Jekyll::Hooks.register :pages, :post_render do |page, payload|
-	next unless Jekyll::SimpleAssets::esbuild_enabled?
-
 	unless Jekyll::SimpleAssets::esbuild_config_file
 		Jekyll::SimpleAssets::generate_esbuild_config_file()
 	end
 
 	if page.extname =~ /^\.(j|t)s$/i
-		Jekyll::SimpleAssets::esbuild_bundle_file(page, payload, Jekyll::SimpleAssets::esbuild_config_file.path)
+		if Jekyll::SimpleAssets::esbuild_enabled?
+			Jekyll::SimpleAssets::esbuild_bundle_file(page, payload, Jekyll::SimpleAssets::esbuild_config_file.path)
+		end
+
+		if Jekyll::SimpleAssets::should_minify_file?(page)
+			min_path = page.path.sub(/\.(j|t)s$/i, '.min.js')
+			File.write(File.join(Jekyll::SimpleAssets::site.config['destination'], min_path), '')
+		end
 	end
 end
 

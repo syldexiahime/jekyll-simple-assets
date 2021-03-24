@@ -50,7 +50,15 @@ def self.esbuild_bundle_file (page, payload, config_path)
 	bundle_cmd = "npx esbuild --bundle --tsconfig=#{ config_path }"
 
 	if page.data['esbuild_flags']
-		bundle_cmd = "#{ bundle_cmd } #{ page.data['esbuild_flags'] }"
+		bundle_cmd += ' ' + page.data['esbuild_flags']
+	end
+
+	node_env = '--define:process.env.NODE_ENV="' + (ENV['JEKYLL_ENV'] != 'production' ? "'development'" : "'production'") + '"'
+
+	bundle_cmd += ' ' + node_env + " --sourcefile=#{ page.path[/[^\/]*$/] }"
+
+	if SimpleAssets::source_maps_enabled?
+		bundle_cmd += ' ' + '--sourcemap=inline'
 	end
 
 	dir = File.dirname(page.path)
