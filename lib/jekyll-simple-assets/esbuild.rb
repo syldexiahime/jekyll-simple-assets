@@ -36,6 +36,7 @@ def self.generate_esbuild_config_file ()
 
 	f.write config.to_json
 	f.close
+	File.chmod(0755, f.path)
 
 	Jekyll::SimpleAssets::esbuild_config_file(f)
 

@@ -18,6 +18,7 @@ def self.make_temp_css_files_for_critical (asset)
 		f = Tempfile.new([ 'css-source', '.css' ])
 		f.write asset.output
 		f.close
+		File.chmod(0755, f.path)
 
 		Jekyll.logger.debug("SimpleAssets:", "Created new temp file for css: #{ asset.path } at: #{ f.path }")
 
